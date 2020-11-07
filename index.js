@@ -5,66 +5,47 @@ var GeoPoint = require('geopoint');
 admin.initializeApp(functions.config().firebase);
 
 exports.sendDangerAlert = functions.https.onCall((data, context) => {
-    const users = admin.firestore().collection('users');
-
-    // let collectionRef = firestore.collection('col');
-    // let collectionRef = firestore.collection('col');
-    const payload = {
-        notification: {
-          title: 'Someone is in DANGER',
-          body: `Go and help!`,
-          icon: 'your-icon-url',
-          click_action: 'FLUTTER_NOTIFICATION_CLICK'
-        },
-        data:{
-            latitude:String(data["latitude"]),longitude:String(data["longitude"]),time:String(Date.now())
-        }
-      };
-  
-    // var message = {
-    //     data: {
-    //       latitude: data["latitude"],
-    //       longitude:data["longitude"]
-    //     },
-    //     token: data["token"]
-    //   };
-
- users.listDocuments().then(documentRefs => {
-     
-     
-   return admin.firestore().getAll(...documentRefs);
-}).then(documentSnapshots => {
-   for (let documentSnapshot of documentSnapshots) {
-      if (documentSnapshot.exists && documentSnapshot.get("location") != null) {
-          console.log(data["longitude"]+"hell")
-          console.log(documentSnapshot.get("location")["latitude"]+"hell1")
-          console.log(documentSnapshot.get("location")+"hell2")
+  uid= data['uid']
+  const users = admin.firestore().collection('users');
+  const payload = {
+    notification: {
+      title: 'Someone is in Danger near you',
+      body: `Go and help!`,
+      icon: 'your-icon-url',
+      click_action: 'FLUTTER_NOTIFICATION_CLICK'
+    },
+    data: {
+      latitude: String(data["latitude"]), longitude: String(data["longitude"]), time: String(Date.now())
+    }
+  };
+  users.listDocuments().then(documentRefs => {
+    return admin.firestore().getAll(...documentRefs);
+  }).then(documentSnapshots => {
+    let alertedUserList = []
+    for (let documentSnapshot of documentSnapshots) {
+      if (documentSnapshot.exists && documentSnapshot.get("location") != null && documentSnapshot.get("uid") != uid) {
         point1 = new GeoPoint(data["latitude"], data["longitude"]);
         point2 = new GeoPoint(documentSnapshot.get("location")["latitude"], documentSnapshot.get("location")["longitude"]);
         var distance = point1.distanceTo(point2, true)
-        if(distance < 10){
-            
-            admin.messaging().sendToDevice(documentSnapshot.get("fcmToken"),payload);
-
-            documentSnapshot.ref.collection("dangerNotifications").add({location:{latitude:data["latitude"],longitude:data["longitude"]},time:Date.now()})
+        if (distance < 10) {
+          admin.messaging().sendToDevice(documentSnapshot.get("fcmToken"), payload);
+          alertedUserList.push(documentSnapshot.get("uid"))
         }
       } else {
         console.log(`Found missing document: ${documentSnapshot.id}`);
       }
-   }
-});
-
-// users.where('foo', '==', 'bar').get().then(querySnapshot => {
-//   querySnapshot.forEach(documentSnapshot => {
-    
-//     console.log(`Found document at ${documentSnapshot.ref.path}`);
-//   });
-// });
-    
-    // return users.add({
-    //     name: data["name"],
-    //     email: data["email"]
-    // });
+    }
+    console.log("alertedUserList", alertedUserList)
+    documentSnapshot.ref.collection("alerts").add({ 
+      location: { 
+        latitude: data["latitude"], 
+        longitude: data["longitude"] 
+      }, 
+      alertedUserList: alertedUserList,
+      alertTime: Date.now(),
+      uid: uid
+    })
+  });
 });
 
 // // Create and Deploy Your First Cloud Functions
